@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComfyUI Lightning Studio</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold mb-8">ComfyUI Lightning Studio</h1>
+        
+        <!-- Model Management -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Model Management</h2>
+            
+            <!-- Upload Form -->
+            <div class="mb-6">
+                <h3 class="text-lg font-medium mb-2">Upload Model</h3>
+                <form id="uploadForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Model Type</label>
+                        <select id="modelType" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                            <option value="checkpoints">Checkpoint</option>
+                            <option value="loras">LoRA</option>
+                            <option value="controlnet">ControlNet</option>
+                            <option value="vae">VAE</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <input type="file" id="modelFile" class="border p-2 rounded">
+                        <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                            Upload
+                        </button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Model List -->
+            <div>
+                <h3 class="text-lg font-medium mb-2">Available Models</h3>
+                <div class="space-y-4">
+                    <div id="checkpointsList" class="space-y-2">
+                        <h4 class="text-sm font-medium text-gray-500">Checkpoints</h4>
+                        <div class="models-container"></div>
+                    </div>
+                    <div id="lorasList" class="space-y-2">
+                        <h4 class="text-sm font-medium text-gray-500">LoRAs</h4>
+                        <div class="models-container"></div>
+                    </div>
+                    <div id="controlnetList" class="space-y-2">
+                        <h4 class="text-sm font-medium text-gray-500">ControlNet Models</h4>
+                        <div class="models-container"></div>
+                    </div>
+                    <div id="vaeList" class="space-y-2">
+                        <h4 class="text-sm font-medium text-gray-500">VAE Models</h4>
+                        <div class="models-container"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Links -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-2xl font-semibold mb-4">Quick Links</h2>
+            <div class="space-y-2">
+                <a href="/proxy/8188" target="_blank" 
+                   class="block bg-green-500 text-white px-4 py-2 rounded text-center hover:bg-green-600">
+                    Open ComfyUI Interface
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load models on page load
+        async function loadModels() {
+            try {
+                const response = await fetch('/api/models');
+                const data = await response.json();
+                
+                // Clear existing lists
+                document.querySelector('#checkpointsList .models-container').innerHTML = '';
+                document.querySelector('#lorasList .models-container').innerHTML = '';
+                document.querySelector('#controlnetList .models-container').innerHTML = '';
+                document.querySelector('#vaeList .models-container').innerHTML = '';
+                
+                // Group models by type
+                const modelsByType = {
+                    checkpoints: [],
+                    loras: [],
+                    controlnet: [],
+                    vae: []
+                };
+                
+                data.models.forEach(model => {
+                    modelsByType[model.type].push(model);
+                });
+                
+                // Update each section
+                Object.entries(modelsByType).forEach(([type, models]) => {
+                    const container = document.querySelector(`#${type}List .models-container`);
+                    if (models.length === 0) {
+                        container.innerHTML = '<p class="text-gray-500">No models available</p>';
+                        return;
+                    }
+                    
+                    container.innerHTML = models.map(model => `
+                        <div class="flex items-center justify-between border p-2 rounded">
+                            <span>${model.name}</span>
+                            <span class="text-gray-500">${formatSize(model.size)}</span>
+                        </div>
+                    `).join('');
+                });
+            } catch (error) {
+                console.error('Error loading models:', error);
+            }
+        }
+
+        // Handle model upload
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            const fileInput = document.getElementById('modelFile');
+            const typeSelect = document.getElementById('modelType');
+            
+            formData.append('model', fileInput.files[0]);
+            formData.append('type', typeSelect.value);
+            
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                alert(data.message || data.error);
+                if (!data.error) {
+                    loadModels();
+                    fileInput.value = '';
+                }
+            } catch (error) {
+                console.error('Error uploading model:', error);
+                alert('Failed to upload model');
+            }
+        });
+
+        // Format file size
+        function formatSize(bytes) {
+            const units = ['B', 'KB', 'MB', 'GB'];
+            let size = bytes;
+            let unitIndex = 0;
+            
+            while (size >= 1024 && unitIndex < units.length - 1) {
+                size /= 1024;
+                unitIndex++;
+            }
+            
+            return `${size.toFixed(1)} ${units[unitIndex]}`;
+        }
+
+        // Initial load
+        loadModels();
+    </script>
+</body>
+</html> 
